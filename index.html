@@ -1,0 +1,63 @@
+<script>
+  window.ws = { readyState: WebSocket.CLOSED }
+  window.heartbeat = () => {
+    if (ws.readyState !== WebSocket.CLOSED) return
+    ws = new WebSocket('ws://192.168.86.27:1111')
+    ws.onopen = e => wsopen(e)
+    ws.onclose = e => wsclose(e)
+    ws.onmessage = e => wsmessage(e)
+    ws.onerror = e => wserror(e)
+  }
+  setInterval(heartbeat, 1000)
+</script>
+<main>
+  <pre v-text="db"></pre>
+  <hr />
+  <input v-model="db.truc" />
+  <input v-model="db.bidule" />
+  <button @click="db = {}">Reset</button>
+</main>
+<script src="https://unpkg.com/fast-json-patch@2.1.0/dist/fast-json-patch.js"></script>
+<script type="module">
+  import Vue from 'https://unpkg.com/vue@2.6.10/dist/vue.esm.browser.js'
+  import * as idb from 'https://unpkg.com/idb-keyval@3.1.0/dist/idb-keyval.mjs'
+  Vue.config.productionTip = false
+  Vue.prototype.window = window
+  new Vue({
+    el: 'main',
+    data: { db: {} },
+    created() {
+      window.wsflag = false
+      window.wsopen = e => {
+        console.log('wsopen', localStorage.wspull || '0')
+        ws.send(localStorage.wspull || '0')
+      }
+      window.wsmessage = e => {
+        const patch = JSON.parse(e.data)
+        if (patch.length) console.log('pull', patch)
+        if (patch.length) window.wsflag = true
+        if (patch.length) this.db = jsonpatch.applyPatch(this.db, patch, true, false).newDocument
+        localStorage.wspull = Date.now()
+      }
+      const debounce = (fn, ms = 0) => (...args) => {
+        clearTimeout(fn.timeout)
+        fn.timeout = setTimeout(() => fn(...args), ms)
+      }
+      const s = () => {
+        idb.get('rawws').then(db => {
+          const patch = jsonpatch.compare(db || {}, this.db)
+          if (patch.length && !window.wsflag) console.log('push', patch)
+          if (patch.length && !window.wsflag) ws.send(JSON.stringify(patch))
+          window.wsflag = false
+          idb.set('rawws', this.db)
+        })
+      }
+      const save = debounce(s, 100)
+      idb.get('rawws').then(db => {
+        this.db = db || {}
+        this.$watch('db', save, { deep: true })
+      })
+      window.onbeforeunload = s
+    },
+  })
+</script>

@@ -1,0 +1,8 @@
+{
+  "name": "rawws",
+  "version": "1.0.0",
+  "description": "Websocket DB",
+  "dependencies": {
+    "ws": "^6.2.1"
+  }
+}
