@@ -1,5 +1,5 @@
 const patch$ = require('fs').createWriteStream(__dirname + '/patches.log', { flags: 'a+', encoding: 'utf-8' })
-const patches = JSON.parse('{' + (require('fs').readFileSync(__dirname + '/patches.log', { encoding: 'utf-8' })) + '}')
+const patches = JSON.parse(require('fs').readFileSync(__dirname + '/patches.log', { encoding: 'utf-8' }).replace(/^/, '{').replace(/,?\n?$/, '}'))
 const wss = new (require('ws')).Server({ port: 1111 })
 wss.on('connection', ws => {
   ws.on('message', m => {
@@ -18,7 +18,7 @@ wss.on('connection', ws => {
       if (type === 'object') {
         // store the patch
         const ts = Date.now()
-        patch$.write(ts + ':' + m + ',\n')
+        patch$.write(`"${ts}": ${m},\n`)
         patches[ts] = json
         wss.clients.forEach(w => ws !== w && w.send(m))
       }
