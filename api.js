@@ -1,29 +1,10 @@
-const patch$ = require('fs').createWriteStream(__dirname + '/patches.log', { flags: 'a+', encoding: 'utf-8' })
-const patches = JSON.parse(require('fs').readFileSync(__dirname + '/patches.log', { encoding: 'utf-8' }).replace(/^/, '{').replace(/,?\n?$/, '}'))
 const wss = new (require('ws')).Server({ port: 1111 })
+const store = []
 wss.on('connection', ws => {
   ws.on('message', m => {
-    try {
-      const json = JSON.parse(m)
-      const type = typeof json
-      // console.log('json', type, json)
-      if (type === 'number') {
-        // send the patches since timestamp
-        const patch = Object.keys(patches)
-          .filter(k => k > json)
-          .map(k => patches[k])
-          .flat()
-        ws.send(JSON.stringify(patch))
-      }
-      if (type === 'object') {
-        // store the patch
-        const ts = Date.now()
-        patch$.write(`"${ts}": ${m},\n`)
-        patches[ts] = json
-        wss.clients.forEach(w => ws !== w && w.send(m))
-      }
-    } catch (e) {
-      console.log('message', m)
-    }
+    if (m.length <= 4) return store.length > +m && ws.send('0000' + JSON.stringify(store.slice(+m || 0)))
+    if (+m.slice(0, 4) !== store.length) return console.log('ID not valid', +m.slice(0, 4), store.length, store.slice(-1)[0])
+    store.push(m.slice(4))
+    wss.clients.forEach(w => ws !== w && w.send(m))
   })
 })

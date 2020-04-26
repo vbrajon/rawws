@@ -1,45 +1,56 @@
-<style>
-  body {
-    margin: 100px auto;
-    width: fit-content;
-    height: fit-content;
-  }
-</style>
-<pre>{}</pre>
-<textarea oninput="rawws.push(Object.assign({}, rawws.storage, { first: event.target.value }))"></textarea>
-<textarea oninput="rawws.push(Object.assign({}, rawws.storage, { second: event.target.value }))"></textarea>
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACAAQMAAAD58POIAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURR0dHXfdAEUEsXwAAAArSURBVEjHY/iPBhhGBYaOAAMUjArABKBhwzAqMJocRtPHqABpAqP1C70FAM5nOhvMJUGgAAAAAElFTkSuQmCC">
+<textarea></textarea>
+<pre></pre>
+<script>
+/*
 
-<script src="https://unpkg.com/fast-json-patch@2.1.0/dist/fast-json-patch.js"></script>
-<script type="module">
-  import * as idb from 'https://unpkg.com/idb-keyval@3.1.0/dist/idb-keyval.mjs'
-  window.ws = {}
-  window.rawws = {
-    async start() {
-      if (!rawws.storage) rawws.storage = (await idb.get('rawws')) || {}
-      if (!rawws.interval) rawws.interval = setInterval(() => ws.readyState === WebSocket.CLOSED && rawws.start(), 10000)
-      ws = new WebSocket('ws://127.0.0.1:1111')
-      ws.onopen = e => ws.send(localStorage.rawws || '0')
-      ws.onmessage = e => rawws.pull(e.data)
-    },
-    pull(msg) {
-      console.log('pull', msg)
-      const patch = JSON.parse(msg)
-      jsonpatch.applyPatch(rawws.storage, patch)
-      localStorage.rawws = Date.now()
-      rawws.push(true)
-    },
-    push(any) {
-      console.log('push', any)
-      if (typeof any === 'object') {
-        const patch = jsonpatch.compare(rawws.storage, any)
-        ws.send(JSON.stringify(patch))
-        rawws.storage = any
-      }
-      idb.set('rawws', rawws.storage)
-      document.querySelector('pre').innerText = JSON.stringify(rawws.storage, null, 2)
-      document.querySelector('textarea:first-of-type').value = rawws.storage.first || ''
-      document.querySelector('textarea:nth-of-type(2)').innerText = rawws.storage.second || ''
-    },
-  }
-  rawws.start()
+FEATURES
+- real time JSON synchronisation
+- data persistence
+
+BONUS
+- simple API
+- no dependencies
+- minimal network exchange
+
+*/
+
+window.rawws = {
+  store: JSON.parse(localStorage.store || '[]'),
+  ws: null,
+  interval: null,
+  start() {
+    if (!this.interval) this.interval = setInterval(() => this.ws.readyState === WebSocket.CLOSED && this.start(), 1000)
+    this.ws = new WebSocket('ws://127.0.0.1:1111')
+    this.ws.onopen = e => this.ws.send(this.store.length)
+    this.ws.onmessage = e => this.pull(e.data)
+  },
+  stop() {
+    clearInterval(this.interval)
+    this.ws.close()
+  },
+  pull(m) {
+    console.log('pull', m.slice(0, 4), m.slice(4)) // DEBUG
+    const id = +m.slice(0, 4)
+    if (!id) this.store = this.store.concat(JSON.parse(m.slice(4)))
+    else this.store[+m.slice(0, 4)] = m.slice(4)
+    localStorage.store = JSON.stringify(this.store, null, 2)
+    $('pre').innerText = JSON.stringify(this.store.map(x => x).reverse(), null, 2) // DEBUG
+  },
+  push(m) {
+    if (!m) return
+    console.log('push', ('0'.repeat(4) + this.store.length).slice(-4), m) // DEBUG
+    this.ws.send(('0'.repeat(4) + this.store.length).slice(-4) + m)
+    this.store.push(m)
+    localStorage.store = JSON.stringify(this.store, null, 2)
+    $('pre').innerText = JSON.stringify(this.store.map(x => x).reverse(), null, 2) // DEBUG
+  },
+}
+rawws.start()
+
+// DEBUG
+window.$ = (s, start = document) => start.querySelector(s)
+window.$$ = (s, start = document) => Array.from(start.querySelectorAll(s))
+$('textarea').oninput = e => rawws.push(e.target.value)
+$('pre').innerText = JSON.stringify(JSON.parse(localStorage.store || '[]').map(x => x).reverse(), null, 2)
 </script>
